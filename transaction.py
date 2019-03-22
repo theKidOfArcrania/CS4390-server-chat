@@ -116,7 +116,7 @@ class StructDef(object):
 
 
 class TransactionType:
-    ''' Represents the types of transactions that can take place '''
+    """ Represents the types of transactions that can take place """
     HELLO        = 1
     CHALLENGE    = 2
     RESPONSE     = 3
