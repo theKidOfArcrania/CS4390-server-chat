@@ -165,6 +165,29 @@ class Transaction(StructDef):
       transaction type being used.
     * **message** refers to a variable length body of the transaction.
 
+    ================
+    Accessing fields
+    ================
+    Because this class extends StructDef, this goes without saying, but there
+    are two ways to access every single field of a transaction struct:
+
+    You can use the special `param` property which points to a copy of the
+    data::
+
+        >>> t = Transaction(type=tt.HISTORY_REQ, cliID=0x1337)
+        >>> t.param['cliID']
+        4919
+        >>> t.param['leng']
+        12
+
+    Or you can do it in the more succinct manner::
+
+        >>> t = Transaction(type=tt.HISTORY_REQ, cliID=0x1337)
+        >>> t.cliID
+        4919
+        >>> t.leng
+        12
+
     =============================
     Converting to and from binary
     =============================
