@@ -1,4 +1,4 @@
-import struct
+import struct, enum
 
 class StructDef(object):
     """ 
@@ -19,14 +19,14 @@ class StructDef(object):
     This variable is a list of 2/3-tuples, (each defining the name, the struct
     type, and a default value if any). 
 
-    For example, the following point class, which can be defined in C as:
+    For example, the following point class, which can be defined in C as::
 
         struct point {
             int x;
             int y;
         }
 
-    Would be defined in a `_structdef` like this:
+    Would be defined in a `_structdef` like this::
 
         _structdef = [('x', 'i', 0),
             ('y', 'i', 0)]
@@ -115,7 +115,7 @@ class StructDef(object):
         return params
 
 
-class TransactionType:
+class TransactionType(enum.IntEnum):
     """ Represents the types of transactions that can take place """
     HELLO        = 1
     CHALLENGE    = 2
@@ -174,6 +174,7 @@ class Transaction(StructDef):
     You can use the special `param` property which points to a copy of the
     data::
 
+        >>> tt = TransactionType
         >>> t = Transaction(type=tt.HISTORY_REQ, cliID=0x1337)
         >>> t.param['cliID']
         4919
@@ -182,6 +183,7 @@ class Transaction(StructDef):
 
     Or you can do it in the more succinct manner::
 
+        >>> tt = TransactionType
         >>> t = Transaction(type=tt.HISTORY_REQ, cliID=0x1337)
         >>> t.cliID
         4919
@@ -231,6 +233,7 @@ class Transaction(StructDef):
         """
         
         params['leng'] = len(params.get('message', b'')) + 12
+        params['type'] = TransactionType(params['type'])
         super().__init__(params)
 
     def to_bytes(self):
