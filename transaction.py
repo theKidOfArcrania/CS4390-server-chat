@@ -252,7 +252,8 @@ class Transaction(StructDef):
         This will also do some checks on the length of the data
         """
         
-        params = Transaction._from_bytes(data)
+        params = Transaction._from_bytes(data[:12])
+        params['message'] = data[12:]
         if params['leng'] is not len(data):
             raise ValueError('Transaction length mismatch')
         

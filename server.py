@@ -12,7 +12,9 @@ def p32(num):
 def u32(data):
     return struct.unpack('<I', data)[0]
 
-users = {}
+users = {1234: User(1234, b'password')}
+
+log.root.setLevel(log.DEBUG)
 
 def main():
     """ Entrypoint for server """
@@ -46,6 +48,7 @@ def handle_udp(data, addr):
 
     t = Transaction.from_bytes(data[:leng])
     if t.type == tt.HELLO:
+        log.info(f'Received HELLO from ID {t.cliID}')
         if t.cliID not in users:
             log.error('User id {} does not exist'.format(t.cliID))
             return
@@ -53,12 +56,16 @@ def handle_udp(data, addr):
         if u.state != UserState.OFFLINE:
             log.warning('Previous session is silently discarded!')
             u.disconnect()
-            return
 
         u.init_sess()
-        send_udp(Transaction(type=tt.CHALLENGE, data=p32(u.sessID)), addr)
+        send_udp(Transaction(type=tt.CHALLENGE, message=p32(u.sessID)), addr)
         u.state = UserState.AUTH
     elif t.type == tt.RESPONSE:
+        log.info(f'Received RESPONSE from ID {t.cliID}')
+        if t.cliID not in users:
+            log.error('User id {} does not exist'.format(t.cliID))
+            return
+        u = users[t.cliID]
         if u.state != UserState.AUTH:
             log.error('Expected user {} to be in AUTH, but is in {}.'.format( \
                     u.cliID, u.state.name))
@@ -69,10 +76,12 @@ def handle_udp(data, addr):
             u.state = UserState.OFFLINE
             send_udp(Transaction(type=tt.AUTH_FAIL), addr)
         else:
-            data = # TODO
+            data = b'blah' # TODO
             send_udp(Transaction(type=tt.AUTH_SUCCESS, message=data), addr)
             u.state = UserState.CONNECTING
             # Listen for TCP conns
+    else:
+        log.error(f'Invalid message type')
 
 def recv_transaction(sock):
     first = u32(sock.recvn(4))
@@ -81,11 +90,8 @@ def recv_transaction(sock):
     
 
 def handle_tcp(sock, user):
+    pass
     # use recv_transaction to receive a Transaction object
-        
-        
 
-        
-        
-
-
+if __name__ == '__main__':
+    main()

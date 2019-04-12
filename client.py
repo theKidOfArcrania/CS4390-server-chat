@@ -25,7 +25,8 @@ def main():
 
     while True:
         data, _ = sock.recvfrom(1024)
-        handle_udp(data)
+        if handle_udp(data):
+            break
 
 def send_udp(trans):
     sock.sendto(trans.to_bytes(), (server_ip, server_port))
@@ -44,12 +45,12 @@ def handle_udp(data):
     t = Transaction.from_bytes(data[:leng])
     if t.type == tt.CHALLENGE:
         # do i need to check anything?
-        u.sessID = u32(t.data)
-        send_udp(Transaction(type = tt.RESPONSE, data = u.get_auth()))
+        u.sessID = u32(t.message)
+        send_udp(Transaction(type = tt.RESPONSE, cliID=u.cliID, message = u.get_auth()))
     elif t.type == tt.AUTH_SUCCESS:
-        # connect TCP
-        pass
+        return True # finished with udp
     elif t.type == tt. AUTH_FAIL:
         print("Authentication failed")
+        return True
 
 main()
