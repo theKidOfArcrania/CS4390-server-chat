@@ -1,6 +1,9 @@
-import struct
+import struct, enum
+from consts import *
 from os import urandom
 
+def p32(data):
+    return struct.pack('<I', data)
 
 def u32(data):
     return struct.unpack('<I', data)[0]
@@ -17,16 +20,17 @@ class User:
         self.state = UserState.OFFLINE
 
     def disconnect(self):
+        pass
         # TODO
 
     def get_auth(self):
         h_auth = hash1()
-        h_auth.update(p32(u.sessID) + self.secretKey)
+        h_auth.update(p32(self.sessID) + self.secretKey)
         return h_auth.digest()
 
-    def get_key():
+    def get_key(self):
         h_key = hash2()
-        h_key.update(p32(u.sessID) + self.secretKey)
+        h_key.update(p32(self.sessID) + self.secretKey)
         return h_key.digest()
 
 
