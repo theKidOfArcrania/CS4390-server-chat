@@ -16,8 +16,7 @@ def main():
     global sock
     global u
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    message = raw_input()
+    sock = socket(AF_INET, SOCK_DGRAM)
         
     u = user.User(1234, b"password")    # temporary client_id and password
     
@@ -28,10 +27,10 @@ def main():
         data, _ = sock.recvfrom(1024)
         handle_udp(data)
 
-def send_udp(trans)
+def send_udp(trans):
     sock.sendto(trans.to_bytes(), (server_ip, server_port))
 
-def handle_udp(data)
+def handle_udp(data):
     leng = u32(data[:4])
     if len(data) < 4:
         log.error('Datagram is too small.')
@@ -49,7 +48,8 @@ def handle_udp(data)
         send_udp(Transaction(type = tt.RESPONSE, data = u.get_auth()))
     elif t.type == tt.AUTH_SUCCESS:
         # connect TCP
+        pass
     elif t.type == tt. AUTH_FAIL:
         print("Authentication failed")
-sock.close()
 
+main()
