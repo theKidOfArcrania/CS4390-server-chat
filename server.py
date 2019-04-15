@@ -49,7 +49,7 @@ class TcpServerHandler(threading.Thread):
             except:
                 print(traceback.format_exc())
 
-users = {1234: User(1234, b'password')}
+users = {123: User(123, b'muybankaccount'), 1234: User(1234, b'password')}
 
 log.root.setLevel(log.DEBUG)
 
