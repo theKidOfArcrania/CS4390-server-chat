@@ -132,6 +132,8 @@ class TransactionType(enum.IntEnum):
     CHAT         = 13
     HISTORY_REQ  = 14
     HISTORY_RESP = 15
+    PING         = 16
+    PONG         = 17
 
 
 class Transaction(StructDef):

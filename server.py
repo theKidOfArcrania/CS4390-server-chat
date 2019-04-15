@@ -1,4 +1,4 @@
-from user import User, UserState
+from user import User, UserState, InvalidUser
 from os import urandom
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
@@ -17,6 +17,10 @@ class TcpServerHandler(threading.Thread):
     def run(self):
         try:
             self._run_noexc()
+        except EOFError: 
+            log.info(f'User {self.__user.cliID} has exited by client quit.')
+        except timeout:
+            log.info(f'User {self.__user.cliID} has exited by timeout.')
         except:
             print(traceback.format_exc())
         finally:
@@ -43,7 +47,12 @@ class TcpServerHandler(threading.Thread):
         u.connected()
         while True:
             t = u.recv_transaction()
-            log.info('Received {t.type.name} transaction')
+            log.info(f'Received {t.type.name} transaction')
+            
+            if t.type == tt.PING:
+                u.send_transaction(Transaction(type=tt.PONG, message=t.message))
+                continue
+
             try:
                 handle_transaction(u, t) #d, whoosh
             except:
@@ -95,10 +104,11 @@ def handle_udp(data, addr):
     if t.type == tt.HELLO:
         log.info(f'Received HELLO from ID {t.cliID}')
         if t.cliID not in users:
-            #TODO: maybe create invalid user, and go on "as normal", so that
-            # we cannot figure out that this is invalid user ID
-            log.error('User id {} does not exist'.format(t.cliID))
-            return
+            # Create "dummy" invalid user, so that client does not differentiate
+            # between bad user ID and bad password
+            log.warning('User id {} does not exist'.format(t.cliID))
+            users[t.cliID] = InvalidUser(t.cliID)
+
         u = users[t.cliID]
         if u.state > UserState.CONNECTING:
             log.warning('Attempt HELLO on connected user!')
@@ -113,11 +123,11 @@ def handle_udp(data, addr):
     elif t.type == tt.RESPONSE:
         log.info(f'Received RESPONSE from ID {t.cliID}')
         if t.cliID not in users:
-            log.error('User id {} does not exist'.format(t.cliID))
+            log.warning('User id {} does not exist'.format(t.cliID))
             return
         u = users[t.cliID]
         if u.state != UserState.AUTH:
-            log.error('Expected user {} to be in AUTH, but is in {}.'.format( \
+            log.warning('Expected user {} to be in AUTH, but is in {}.'.format( \
                     u.cliID, u.state.name))
             return
 
@@ -125,6 +135,8 @@ def handle_udp(data, addr):
             log.warning('Invalid authentication for user {}.'.format(u.cliID))
             u.state = UserState.OFFLINE
             send_udp(Transaction(type=tt.AUTH_FAIL), addr)
+            if type(u) is InvalidUser:
+                del users[t.cliID]
         else:
             trans = u.init_connection()
             hdlr = TcpServerHandler(u)
@@ -133,6 +145,7 @@ def handle_udp(data, addr):
             send_udp(trans, addr)
             u.hdlr = hdlr
             u.state = UserState.CONNECTING
+
     else:
         log.error(f'Invalid message type: "{t.type.name}"')
 

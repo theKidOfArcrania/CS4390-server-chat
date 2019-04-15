@@ -11,7 +11,7 @@ from consts import *
 class UserState(enum.IntEnum):
     OFFLINE, AUTH, CONNECTING, CONNECTED, CHATTING = range(5)
 
-class User:
+class User(object):
     def __init__(self, cliID, secretKey):
         """ Initializes user """
         self.cliID = cliID
@@ -33,6 +33,7 @@ class User:
             conn.reset()
 
         conn, _ = self.__sbind.accept()
+        conn.settimeout(server_activity_timeout)
         self.__conn = EncSocket(conn, self.get_key())
 
     def connected(self):
@@ -94,6 +95,7 @@ class User:
             data = unpad(cipher.decrypt(recv.message), AES.block_size)
             cookie, port = fmt.unpack(data)
             conn.connect((server_ip, port))
+            conn.settimeout(client_activity_timeout)
 
             ret = None
             conn = EncSocket(conn, self.get_key())
@@ -121,11 +123,6 @@ class User:
         self.__sbind = sbind
         self.__conn = conn
         return ret
-
-    @property
-    def cookie(self):
-        """ Obtains the cookie when initializing the connection"""
-        return self.__cookie
 
     def disconnect(self):
         """ Disconnects the client from current chat (if still connected) and
@@ -164,6 +161,32 @@ class User:
         """
 
         self.sessID = u32(urandom(4))
+
+class InvalidUser(User):
+    def __init__(self, cliID):
+        """ Initializes an "invalid" user that cannot login """
+        User.__init__(self, cliID, b'')
+
+    def accept_conn(self):
+        raise ValueError('Invalid user!')
+
+    def connected(self):
+        raise ValueError('Invalid user!')
+
+    def init_connecion(self):
+        raise ValueError('Invalid user!')
+
+    def recv_transaction(self):
+        raise ValueError('Invalid user!')
+    
+    def send_transaction(self):
+        raise ValueError('Invalid user!')
+
+    def get_auth(self):
+        return b'Invalid!'
+
+    def get_key(self):
+        return b'Invalid!'
 
 def p32(data):
     return struct.pack('<I', data)

@@ -1,10 +1,32 @@
 from consts import * # server_ip, server_port
 from socket import *
 from transaction import *
-import struct, traceback, logging as log, enum, sys
+import struct, traceback, logging as log, enum, sys, threading
 import user
 
 tt = TransactionType
+
+class Pinger(object):
+    def __init__(self, user):
+        self.__user = user
+        self.__timer = None
+
+    def __do_ping(self):
+        self.__timer = None
+        self.start()
+        self.__user.send_transaction(Transaction(type=tt.PING, message=b'1234567890'))
+
+    def start(self):
+        if self.__timer:
+            return
+        self.__timer = threading.Timer(ping_timeout, self.__do_ping)
+        self.__timer.daemon = True
+        self.__timer.start()
+
+    def stop(self):
+        if self.__timer:
+            self.__timer.cancel()
+            self.__timer = None
 
 def p32(num):
     return struct.pack('<I', num)
@@ -17,6 +39,8 @@ def main():
     global u
 
     sock = socket(AF_INET, SOCK_DGRAM)
+    sock.settimeout(conn_timeout)
+
     
     print("""
 /******************************\\
@@ -31,17 +55,29 @@ def main():
     while code != 1: 
         u = user.User(*prompt_creds())
         send_udp(Transaction(type = tt.HELLO, cliID = u.cliID))
-        while True:
-            data, _ = sock.recvfrom(1024)
-            code = handle_udp(data)
-            if code != 0:
-                break
+        try:
+            while True:
+                data, _ = sock.recvfrom(1024)
+                code = handle_udp(data)
+                if code != 0:
+                    break
+        except timeout:
+            print('Received timeout on server!\n')
+
+
+    # Initialize pinger
+    p = Pinger(u)
+    p.start()
 
     # Now receive transactions from TCP connection
     print('Connected to server!\n')
-    while True:
-        trans = u.recv_transaction()
-        handle_tcp(trans)
+    try:
+        while True:
+            trans = u.recv_transaction()
+            print(f'Received {trans.type.name} transaction: {trans.message}')
+            handle_tcp(trans)
+    finally:
+        p.stop()
 
 
 def getpass(prompt='Password: '):
