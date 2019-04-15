@@ -1,16 +1,53 @@
-from transaction import *
+from user import User, UserState
+from os import urandom
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+import traceback, logging as log, enum, threading, struct
+
+from transaction import Transaction, TransactionType as tt
 from consts import * # contains server_ip, server_port
 from socket import *
-from user import User, UserState
-import traceback, logging as log, enum
 
-tt = TransactionType
+class TcpServerHandler(threading.Thread):
+    def __init__(self, user):
+        threading.Thread.__init__(self, daemon=True)
 
-def p32(num):
-    return struct.pack('<I', num)
+        self.__user = user
 
-def u32(data):
-    return struct.unpack('<I', data)[0]
+    def run(self):
+        try:
+            self._run_noexc()
+        except:
+            print(traceback.format_exc())
+        finally:
+            self.__user.disconnect()
+
+    def _run_noexc(self):
+        u = self.__user
+
+        # Receive connect message
+        while True:
+            u.accept_conn()
+
+            t = u.recv_transaction()
+            if t.type == tt.CONNECT:
+                if t.message == u.cookie:
+                    log.info('Received valid CONNECT from client')
+                    break
+                else:
+                    log.warning('Received malformed CONNECT from client')
+            else:
+                log.warning(f'Received {t.type.name} instead of CONNECT')
+        
+        # Now loop for each transaction
+        u.connected()
+        while True:
+            t = u.recv_transaction()
+            log.info('Received {t.type.name} transaction')
+            try:
+                handle_transaction(u, t) #d, whoosh
+            except:
+                print(traceback.format_exc())
 
 users = {1234: User(1234, b'password')}
 
@@ -19,6 +56,8 @@ log.root.setLevel(log.DEBUG)
 def main():
     """ Entrypoint for server """
     global sock
+
+    # TODO: load users/ chat history from file.
 
     sock = socket(AF_INET, SOCK_DGRAM, 0)
     sock.bind((server_ip, server_port))
@@ -32,6 +71,12 @@ def main():
 
 def send_udp(trans, addr):
     sock.sendto(trans.to_bytes(), addr)
+
+def p32(num):
+    return struct.pack('<I', num)
+
+def u32(data):
+    return struct.unpack('<I', data)[0]
 
 def handle_udp(data, addr):
     """ Handles a UDP request """
@@ -50,10 +95,15 @@ def handle_udp(data, addr):
     if t.type == tt.HELLO:
         log.info(f'Received HELLO from ID {t.cliID}')
         if t.cliID not in users:
+            #TODO: maybe create invalid user, and go on "as normal", so that
+            # we cannot figure out that this is invalid user ID
             log.error('User id {} does not exist'.format(t.cliID))
             return
         u = users[t.cliID]
-        if u.state != UserState.OFFLINE:
+        if u.state > UserState.CONNECTING:
+            log.warning('Attempt HELLO on connected user!')
+            return
+        elif u.state != UserState.OFFLINE:
             log.warning('Previous session is silently discarded!')
             u.disconnect()
 
@@ -76,20 +126,21 @@ def handle_udp(data, addr):
             u.state = UserState.OFFLINE
             send_udp(Transaction(type=tt.AUTH_FAIL), addr)
         else:
-            data = b'blah' # TODO
-            send_udp(Transaction(type=tt.AUTH_SUCCESS, message=data), addr)
-            u.state = UserState.CONNECTING
-            # Listen for TCP conns
-    else:
-        log.error(f'Invalid message type')
+            trans = u.init_connection()
+            hdlr = TcpServerHandler(u)
+            hdlr.start()
 
-def recv_transaction(sock):
-    first = u32(sock.recvn(4))
-    t = Transaction.from_bytes(first + sock.recvn(u32(first) - 4))
-    return t
+            send_udp(trans, addr)
+            u.hdlr = hdlr
+            u.state = UserState.CONNECTING
+    else:
+        log.error(f'Invalid message type: "{t.type.name}"')
+
     
 
-def handle_tcp(sock, user):
+def handle_transaction(user, trans):
+    """ Handles a TCP transaction object on the server end. """
+    #TODO
     pass
     # use recv_transaction to receive a Transaction object
 

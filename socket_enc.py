@@ -13,6 +13,11 @@ class EncSocket(object):
         self._buff = b''
         self._key = key
 
+    @property
+    def sock(self):
+        """ Returns the underlying socket """
+        return self._sock
+
     def _recv_block(self):
         """ Helper private method for reading one entire encrypted block """
 
@@ -61,6 +66,6 @@ class EncSocket(object):
         edata = cipher.encrypt(pad(data, AES.block_size))
         
         payload = struct.pack('<I', len(edata)) + cipher.iv + edata
-        self._sock.send(payload)
+        self._sock.sendall(payload)
 
 

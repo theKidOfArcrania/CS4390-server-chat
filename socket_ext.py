@@ -19,3 +19,9 @@ def recvn(sock, size):
     return res
 
 socket.recvn = recvn
+
+# Send RST packet
+def reset(sock):
+    sock.setsockopt(SOL_SOCKET, SO_LINGER, struct.pack('ii', 1, 0))
+    sock.close()
+socket.reset = reset
