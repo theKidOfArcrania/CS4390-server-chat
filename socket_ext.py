@@ -2,6 +2,7 @@
 # Just do `import socket_ext` and you socket should be updated!
 
 from socket import *
+import struct
 
 def recvn(sock, size):
     """ 

@@ -13,10 +13,23 @@ class EncSocket(object):
         self._buff = b''
         self._key = key
 
-    @property
-    def sock(self):
-        """ Returns the underlying socket """
-        return self._sock
+    def accept(self):
+        return self._sock.accept()
+
+    def bind(self, addr):
+        self._sock.bind(addr)
+
+    def connect(self, addr):
+        self.connect(addr)
+
+    def close(self):
+        self._sock.close()
+
+    def listen(self, backlog):
+        self._sock.listen(backlog)
+
+    def reset(self):
+        self._sock.reset()
 
     def _recv_block(self):
         """ Helper private method for reading one entire encrypted block """

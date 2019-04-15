@@ -138,7 +138,7 @@ class User(object):
             self.__sbind = None
 
         if self.__conn:
-            self.__conn.sock.close()
+            self.__conn.close()
             self.__conn = None
 
         self.state = UserState.OFFLINE

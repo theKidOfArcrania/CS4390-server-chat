@@ -7,7 +7,23 @@ It also contains a chat history (stored server-side) between two clients.
 
 ## Building/Running
 
-TODO
+Setting up virtual environment and installing requirements:
+
+```sh
+$ python -m venv venv
+$ source venv/bin/activate
+$ pip3 install -r requirements.txt
+```
+
+To run the server:
+```sh
+$ python3 server.py
+```
+
+To run the client:
+```sh
+$ python3 client.py
+```
 
 ## License
 

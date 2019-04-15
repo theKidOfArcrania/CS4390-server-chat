@@ -2,11 +2,13 @@ from user import User, UserState, InvalidUser
 from os import urandom
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
-import traceback, logging as log, enum, threading, struct
+import traceback, enum, threading, struct
 
 from transaction import Transaction, TransactionType as tt
 from consts import * # contains server_ip, server_port
 from socket import *
+
+
 
 class TcpServerHandler(threading.Thread):
     def __init__(self, user):
@@ -22,7 +24,7 @@ class TcpServerHandler(threading.Thread):
         except timeout:
             log.info(f'User {self.__user.cliID} has exited by timeout.')
         except:
-            print(traceback.format_exc())
+            log.error(traceback.format_exc())
         finally:
             self.__user.disconnect()
 
@@ -33,21 +35,25 @@ class TcpServerHandler(threading.Thread):
         while True:
             u.accept_conn()
 
-            t = u.recv_transaction()
-            if t.type == tt.CONNECT:
-                if t.message == u.cookie:
-                    log.info('Received valid CONNECT from client')
-                    break
+            try:
+                t = u.recv_transaction()
+                if t.type == tt.CONNECT:
+                    if t.message == u.cookie:
+                        log.info(f'CONNECT(user {u.cliID}): validated!')
+                        break
+                    else:
+                        log.warning(f'CONNECT(user {u.cliID}): Invalid cookie!')
                 else:
-                    log.warning('Received malformed CONNECT from client')
-            else:
-                log.warning(f'Received {t.type.name} instead of CONNECT')
+                    log.warning(f'CONNECT(user {u.cliID}): Received {t.type.name}'+
+                            ' instead of CONNECT')
+            except:
+                log.error(traceback.format_exc())
         
         # Now loop for each transaction
         u.connected()
         while True:
             t = u.recv_transaction()
-            log.info(f'Received {t.type.name} transaction')
+            log.debug(f'TCP(user {u.cliID}): Received {t.type.name} transaction')
             
             if t.type == tt.PING:
                 u.send_transaction(Transaction(type=tt.PONG, message=t.message))
@@ -56,11 +62,9 @@ class TcpServerHandler(threading.Thread):
             try:
                 handle_transaction(u, t) #d, whoosh
             except:
-                print(traceback.format_exc())
+                log.error(traceback.format_exc())
 
 users = {123: User(123, b'muybankaccount'), 1234: User(1234, b'password')}
-
-log.root.setLevel(log.DEBUG)
 
 def main():
     """ Entrypoint for server """
@@ -76,7 +80,7 @@ def main():
         try:
             handle_udp(data, addr)
         except:
-           print(traceback.format_exc()) 
+           log.error(traceback.format_exc()) 
 
 def send_udp(trans, addr):
     sock.sendto(trans.to_bytes(), addr)
@@ -101,38 +105,37 @@ def handle_udp(data, addr):
         log.warning('Extraneous data at end of packet')
 
     t = Transaction.from_bytes(data[:leng])
+    log.debug(f'UCP(user {t.cliID}): Received {t.type.name} transaction')
     if t.type == tt.HELLO:
-        log.info(f'Received HELLO from ID {t.cliID}')
         if t.cliID not in users:
             # Create "dummy" invalid user, so that client does not differentiate
             # between bad user ID and bad password
-            log.warning('User id {} does not exist'.format(t.cliID))
+            log.warning('HELLO: User id {} does not exist'.format(t.cliID))
             users[t.cliID] = InvalidUser(t.cliID)
 
         u = users[t.cliID]
         if u.state > UserState.CONNECTING:
-            log.warning('Attempt HELLO on connected user!')
+            log.warning('HELLO: Attempt HELLO on connected user!')
             return
         elif u.state != UserState.OFFLINE:
-            log.warning('Previous session is silently discarded!')
+            log.warning('HELLO: Previous session is silently discarded!')
             u.disconnect()
 
         u.init_sess()
         send_udp(Transaction(type=tt.CHALLENGE, message=p32(u.sessID)), addr)
         u.state = UserState.AUTH
     elif t.type == tt.RESPONSE:
-        log.info(f'Received RESPONSE from ID {t.cliID}')
         if t.cliID not in users:
-            log.warning('User id {} does not exist'.format(t.cliID))
+            log.warning(f'RESPONSE: User id {t.cliID} does not exist')
             return
         u = users[t.cliID]
         if u.state != UserState.AUTH:
-            log.warning('Expected user {} to be in AUTH, but is in {}.'.format( \
-                    u.cliID, u.state.name))
+            log.warning(f'RESPONSE: Expected user {u.cliID} to be in AUTH, ' +
+                    f'but is in {u.state.name}.')
             return
 
         if t.message != u.get_auth():
-            log.warning('Invalid authentication for user {}.'.format(u.cliID))
+            log.warning(f'RESPONSE: Invalid authentication for user {u.cliID}.')
             u.state = UserState.OFFLINE
             send_udp(Transaction(type=tt.AUTH_FAIL), addr)
             if type(u) is InvalidUser:
@@ -147,7 +150,7 @@ def handle_udp(data, addr):
             u.state = UserState.CONNECTING
 
     else:
-        log.error(f'Invalid message type: "{t.type.name}"')
+        log.error(f'UDP: Invalid message type: "{t.type.name}"')
 
     
 
