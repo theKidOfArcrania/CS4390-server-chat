@@ -22,6 +22,10 @@ class User(object):
         self.__sbind = None
         self.__conn = None
 
+    @property
+    def cookie(self):
+        return self.__cookie
+
     def accept_conn(self):
         """ Server only: accepts a potential client connection. """
 

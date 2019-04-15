@@ -85,26 +85,36 @@ def getpass(prompt='Password: '):
     if not sys.stdin.isatty():
         print('Not running on a terminal... bye!')
         exit(1)
-    fd = sys.stdin.fileno()
+
+    ttyin = sys.stdin
+    ttyout = sys.stdout if sys.stdout.isatty() else ttyin
+
+    fd = ttyin.fileno()
     old = termios.tcgetattr(fd)
     new = old[::]
     new[3] = new[3] & ~(termios.ECHO | termios.ICANON)  # lflags
     try:
         termios.tcsetattr(fd, termios.TCSADRAIN, new)
         
-        sys.stdout.write(prompt)
-        sys.stdout.flush()
+        ttyout.write(prompt)
+        ttyout.flush()
         passwd = b''
         while True:
-            c = sys.stdin.buffer.read(1)
+            c = ttyin.buffer.read(1)
             if not c:
                 raise EOFError()
             elif c == b'\n':
                 break
+            elif c == b'\x7f': # Backspace
+                if len(passwd) > 0:
+                    passwd = passwd[:-1]
+                    ttyout.write('\x1b[D\x1b[K')
+                    ttyout.flush()
+
             else:
                 passwd += c
-                sys.stdout.write('*')
-                sys.stdout.flush()
+                ttyout.write('*')
+                ttyout.flush()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
         print('')
