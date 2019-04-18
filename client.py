@@ -76,9 +76,24 @@ def main():
             trans = u.recv_transaction()
             print(f'Received {trans.type.name} transaction: {trans.message}')
             handle_tcp(trans)
+            if u.state != UserState.CHATTING:
+                promptAction()
+            else:
+                msg = input()
+                u.send_transaction(Transaction(type=tt.CHAT, message=msg, sessID=transaction.sessID))
+                trans = u.recv_transaction()
+                handle_tcp(trans)
+                if msg == "End Chat":
+                    u.send_transaction(Transaction(type=tt.END_REQUEST, sessID=transaction.sessID))
     finally:
         p.stop()
 
+def promptAction():
+    a,b = input("What would you like to do:").split()
+    if a == "Chat" or a == "chat":
+        u.send_transaction(Transaction(type=tt.CHAT_REQUEST, cliID=b))
+    elif a == "History" or a == "history":
+        u.send_transaction(Transaction(type=tt.HISTORY_REQ, cliID=b))
 
 def getpass(prompt='Password: '):
     import termios
@@ -140,7 +155,19 @@ def send_udp(trans):
 
 def handle_tcp(transaction):
     global u
-    # TODO:
+    
+    if transaction.type == tt.UNREACHABLE:
+        print('User Unavailable')
+    elif transaction.type == tt.CHAT_STARTED:
+        print('Chat Started :)')
+        u.state = UserState.CHATTING
+    elif transaction.type == tt.END_NOTIF:
+        print('Chat Ended :(')
+        u.state = UserState.ONLINE
+    elif transaction.type == tt.CHAT:
+        print('Other user says: {transaction.message')
+    elif transaction.type == tt.HISTORY_RESP:
+        print('History with this user:')
     pass
 
 def handle_udp(data):
