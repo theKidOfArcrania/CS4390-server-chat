@@ -70,6 +70,8 @@ def main():
     """ Entrypoint for server """
     global sock
 
+    chatID = 0
+
     # TODO: load users/ chat history from file.
 
     sock = socket(AF_INET, SOCK_DGRAM, 0)
@@ -156,9 +158,36 @@ def handle_udp(data, addr):
 
 def handle_transaction(user, trans):
     """ Handles a TCP transaction object on the server end. """
-    #TODO
+    if trans.type == tt.CHAT_REQUEST:
+        if (trans.cliID.state == UserState.OFFLINE) or (trans.cliID.state == UserState.CHATTING) or (trans.cliID not in users):
+            user.send_transaction(Transaction(type=tt.UNREACHABLE, cliID=trans.cliID))
+        else:
+            #create class of chat session, with array of messages+sessID+corresponding client as member using client_id_a, client_id_b as an identifier
+            chatID += 1
+            users(trans.cliID).sessID = chatID
+            user.sessID = chatID
+            #users("trans/cliID").state = UserState.CHATTING
+            user.state = UserState.CHATTING
+            user.send_transaction(Transaction(type=tt.CHAT_STARTED, sessID=chatID, cliID=trans.cliID))
+            users(trans.cliID).send_transaction(Transaction(type=tt.CHAT_STARTED, sessID=chatID, cliID=trans.cliID))
+    elif trans.type == tt.END_REQUEST:
+        for x in users:
+            if x.sessID == trans.sessID:
+                x.state = UserState.ONLINE
+                x.sessID = 0
+                x.send_transaction(Transaction(type=tt.END_NOTIF, sessID=trans.sessID))
+    elif trans.type == tt.CHAT:
+        #store message inside array 
+        for x in users:
+            if x.sessID == trans.sessID:
+                x.send_transaction(Transaction(type=tt.CHAT, sessID=trans.sessID, message=trans.message))
+    #elif trans.type == tt.HISTORY_REQ:
+        #for x in #chat log array
+            #if x.identifier = #client_id_a, client_id_b
+                #for y in x.messages:
+                    #user.send_transaction(Transaction(type=tt.HISTORY_RESP, cliID=user.cliID, message=))
     pass
-    # use recv_transaction to receive a Transaction object
 
 if __name__ == '__main__':
     main()
+
