@@ -2,7 +2,9 @@ from consts import * # server_ip, server_port
 from socket import *
 from transaction import *
 import struct, traceback, logging as log, enum, sys, threading
-import user
+import user 
+from user import UserState
+from threading import Thread
 
 tt = TransactionType
 
@@ -71,29 +73,37 @@ def main():
 
     # Now receive transactions from TCP connection
     print('Connected to server!\n')
-    try:
-        while True:
-            trans = u.recv_transaction()
-            print(f'Received {trans.type.name} transaction: {trans.message}')
-            handle_tcp(trans)
-            if u.state != UserState.CHATTING:
-                promptAction()
-            else:
-                msg = input()
-                u.send_transaction(Transaction(type=tt.CHAT, message=msg, sessID=transaction.sessID))
-                trans = u.recv_transaction()
-                handle_tcp(trans)
-                if msg == "End Chat":
-                    u.send_transaction(Transaction(type=tt.END_REQUEST, sessID=transaction.sessID))
-    finally:
-        p.stop()
+    
+    t1 = Thread(target=listen)
+    t1.start()
+    clientSessionID = 0
 
-def promptAction():
-    a,b = input("What would you like to do:").split()
-    if a == "Chat" or a == "chat":
-        u.send_transaction(Transaction(type=tt.CHAT_REQUEST, cliID=b))
+    while True:
+        userInput = input()
+        if u.state != UserState.CHATTING:
+            menu(userInput)
+            continue
+        chatting(userInput)
+        continue
+        #p.stop()
+
+def menu(userInput):
+    global u
+    a,b = userInput.split()
+
+    if a == 'Chat' or a == "chat":
+        u.send_transaction(Transaction(type=tt.CHAT_REQUEST, cliID=int(b)))
     elif a == "History" or a == "history":
-        u.send_transaction(Transaction(type=tt.HISTORY_REQ, cliID=b))
+        u.send_transaction(Transaction(type=tt.HISTORY_REQ, cliID=int(b)))
+
+def chatting(userInput):
+    global u
+    msg = bytes(userInput, "utf8")
+
+    if msg == bytes("End Chat","utf8"):
+        u.send_transaction(Transaction(type=tt.END_REQUEST, sessID=clientSessionID))
+    else:
+        u.send_transaction(Transaction(type=tt.CHAT, message=msg, sessID=clientSessionID))
 
 def getpass(prompt='Password: '):
     import termios
@@ -155,19 +165,23 @@ def send_udp(trans):
 
 def handle_tcp(transaction):
     global u
+    global chatID
     
     if transaction.type == tt.UNREACHABLE:
         print('User Unavailable')
     elif transaction.type == tt.CHAT_STARTED:
-        print('Chat Started :)')
+        print(f'Chat Started!\nSession ID: {transaction.sessID}')
         u.state = UserState.CHATTING
+        global clientSessionID
+        clientSessionID = transaction.sessID
     elif transaction.type == tt.END_NOTIF:
-        print('Chat Ended :(')
-        u.state = UserState.ONLINE
+        print('Chat Ended')
+        u.state = UserState.CONNECTED
     elif transaction.type == tt.CHAT:
-        print('Other user says: {transaction.message')
+        print(f'Other user says: {transaction.message.decode("utf8")}')
     elif transaction.type == tt.HISTORY_RESP:
-        print('History with this user:')
+        print('{transaction.message.decode("utf8")}')
+
     pass
 
 def handle_udp(data):
@@ -195,4 +209,16 @@ def handle_udp(data):
 
     return 0
 
-main()
+def listen():
+    global u
+
+    while True:
+        try:
+            trans = u.recv_transaction()
+            #print(f'Received {trans.type.name} transaction: {trans.message}')
+            handle_tcp(trans)
+        except timeout:
+            print('Received timeout on server!\n')
+
+if __name__ == '__main__':
+    main()
