@@ -158,7 +158,10 @@ def handle_udp(data, addr):
 def handle_transaction(user, trans):
     """ Handles a TCP transaction object on the server end. """
     if trans.type == tt.CHAT_REQUEST:
-        if (users[trans.cliID].state == UserState.OFFLINE) or (users[trans.cliID].state == UserState.CHATTING) or (trans.cliID not in users):
+        if trans.cliID not in users:
+            log.warning(f'User {trans.cliID} does not exist')
+            user.send_transaction(Transaction(type=tt.UNREACHABLE, cliID=trans.cliID))
+        elif (users[trans.cliID].state != UserState.CONNECTED:
             user.send_transaction(Transaction(type=tt.UNREACHABLE, cliID=trans.cliID))
         else:
             #TODO create class of chat session, with array of messages+sessID+corresponding client as member using client_id_a, client_id_b as an identifier 
@@ -170,14 +173,17 @@ def handle_transaction(user, trans):
             user.sessID = chatID
             users[trans.cliID].state = UserState.CHATTING
             user.state = UserState.CHATTING
-            user.send_transaction(Transaction(type=tt.CHAT_STARTED, sessID=chatID, cliID=trans.cliID))
-            users[trans.cliID].send_transaction(Transaction(type=tt.CHAT_STARTED, sessID=chatID, cliID=trans.cliID))
+            user.send_transaction(Transaction(type=tt.CHAT_STARTED, 
+                sessID=chatID, cliID=trans.cliID))
+            users[trans.cliID].send_transaction(Transaction(type=tt.CHAT_STARTED, 
+                sessID=chatID, cliID=trans.cliID))
     elif trans.type == tt.END_REQUEST:
         for x in users:
             if users[x].sessID == trans.sessID:
                 users[x].state = UserState.CONNECTED
                 users[x].sessID = 0
-                users[x].send_transaction(Transaction(type=tt.END_NOTIF, sessID=trans.sessID))
+                users[x].send_transaction(Transaction(type=tt.END_NOTIF, 
+                    sessID=trans.sessID))
     elif trans.type == tt.CHAT:
         # TODO store message inside array for chat log
         for x in users:

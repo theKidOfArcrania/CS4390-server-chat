@@ -74,7 +74,7 @@ def main():
     # Now receive transactions from TCP connection
     print('Connected to server!\n')
     
-    t1 = Thread(target=listen)
+    t1 = Thread(target=listen, daemon=True)
     t1.start()
     clientSessionID = 0
 
