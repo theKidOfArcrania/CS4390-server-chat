@@ -55,22 +55,21 @@ class TcpServerHandler(threading.Thread):
             t = u.recv_transaction()
             log.debug(f'TCP(user {u.cliID}): Received {t.type.name} transaction')
             
-            if t.type == tt.PING:
-                u.send_transaction(Transaction(type=tt.PONG, message=t.message))
-                continue
-
             try:
                 handle_transaction(u, t) #d, whoosh
             except:
                 log.error(traceback.format_exc())
+            
+            if t.type == tt.PING:
+                u.send_transaction(Transaction(type=tt.PONG, message=t.message))
+                continue
 
-users = {123: User(123, b'muybankaccount'), 1234: User(1234, b'password')}
+users = {123: User(123, b'test'), 1234: User(1234, b'password')}
+chatID = 0
 
 def main():
     """ Entrypoint for server """
     global sock
-
-    chatID = 0
 
     # TODO: load users/ chat history from file.
 
@@ -107,7 +106,7 @@ def handle_udp(data, addr):
         log.warning('Extraneous data at end of packet')
 
     t = Transaction.from_bytes(data[:leng])
-    log.debug(f'UCP(user {t.cliID}): Received {t.type.name} transaction')
+    log.debug(f'UDP(user {t.cliID}): Received {t.type.name} transaction')
     if t.type == tt.HELLO:
         if t.cliID not in users:
             # Create "dummy" invalid user, so that client does not differentiate
@@ -159,33 +158,38 @@ def handle_udp(data, addr):
 def handle_transaction(user, trans):
     """ Handles a TCP transaction object on the server end. """
     if trans.type == tt.CHAT_REQUEST:
-        if (trans.cliID.state == UserState.OFFLINE) or (trans.cliID.state == UserState.CHATTING) or (trans.cliID not in users):
+        if (users[trans.cliID].state == UserState.OFFLINE) or (users[trans.cliID].state == UserState.CHATTING) or (trans.cliID not in users):
             user.send_transaction(Transaction(type=tt.UNREACHABLE, cliID=trans.cliID))
         else:
-            #create class of chat session, with array of messages+sessID+corresponding client as member using client_id_a, client_id_b as an identifier
+            #TODO create class of chat session, with array of messages+sessID+corresponding client as member using client_id_a, client_id_b as an identifier 
+            #if it doesnt exist
+            global chatLog
+            global chatID
             chatID += 1
-            users(trans.cliID).sessID = chatID
+            users[trans.cliID].sessID = chatID
             user.sessID = chatID
-            #users("trans/cliID").state = UserState.CHATTING
+            users[trans.cliID].state = UserState.CHATTING
             user.state = UserState.CHATTING
             user.send_transaction(Transaction(type=tt.CHAT_STARTED, sessID=chatID, cliID=trans.cliID))
-            users(trans.cliID).send_transaction(Transaction(type=tt.CHAT_STARTED, sessID=chatID, cliID=trans.cliID))
+            users[trans.cliID].send_transaction(Transaction(type=tt.CHAT_STARTED, sessID=chatID, cliID=trans.cliID))
     elif trans.type == tt.END_REQUEST:
         for x in users:
-            if x.sessID == trans.sessID:
-                x.state = UserState.ONLINE
-                x.sessID = 0
-                x.send_transaction(Transaction(type=tt.END_NOTIF, sessID=trans.sessID))
+            if users[x].sessID == trans.sessID:
+                users[x].state = UserState.CONNECTED
+                users[x].sessID = 0
+                users[x].send_transaction(Transaction(type=tt.END_NOTIF, sessID=trans.sessID))
     elif trans.type == tt.CHAT:
-        #store message inside array 
+        # TODO store message inside array for chat log
         for x in users:
-            if x.sessID == trans.sessID:
-                x.send_transaction(Transaction(type=tt.CHAT, sessID=trans.sessID, message=trans.message))
-    #elif trans.type == tt.HISTORY_REQ:
-        #for x in #chat log array
-            #if x.identifier = #client_id_a, client_id_b
+            if (users[x].sessID == trans.sessID) and (users[x] != user):
+                users[x].send_transaction(Transaction(type=tt.CHAT, sessID=trans.sessID, message=trans.message))
+    elif trans.type == tt.HISTORY_REQ:
+        #used to test client
+        user.send_transaction(Transaction(type=tt.CHAT, sessID=5, message=bytes('hello',"utf8")))
+        # TODO for x in chat log array
+            #if x.identifier = f('chats between {client_id_a} and {client_id_b} identifier)
                 #for y in x.messages:
-                    #user.send_transaction(Transaction(type=tt.HISTORY_RESP, cliID=user.cliID, message=))
+                    #user.send_transaction(Transaction(type=tt.HISTORY_RESP, cliID=user.cliID, message=x.messages[y]))
     pass
 
 if __name__ == '__main__':
