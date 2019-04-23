@@ -4,7 +4,8 @@ from transaction import *
 import struct, traceback, logging as log, enum, sys, threading
 import user 
 from user import UserState
-from threading import Thread
+import threading
+import time
 
 tt = TransactionType
 
@@ -72,35 +73,49 @@ def main():
     p.start()
 
     # Now receive transactions from TCP connection
-    print('Connected to server!\n')
+    print('Connected to server!\nType "help/Help" to see available commands.')
     
-    t1 = Thread(target=listen, daemon=True)
+    t1 = threading.Thread(target=listen, daemon=True)
     t1.start()
     clientSessionID = 0
 
     while True:
-        userInput = input()
+        userInput = input("\nSay:")
         if u.state != UserState.CHATTING:
             menu(userInput)
+            time.sleep(.05)
             continue
         chatting(userInput)
+        time.sleep(.05)
         continue
         #p.stop()
 
 def menu(userInput):
     global u
-    a,b = userInput.split()
+    
+    try:        
+        a,b = userInput.split()
 
-    if a == 'Chat' or a == "chat":
-        u.send_transaction(Transaction(type=tt.CHAT_REQUEST, cliID=int(b)))
-    elif a == "History" or a == "history":
-        u.send_transaction(Transaction(type=tt.HISTORY_REQ, cliID=int(b)))
+        if a == 'Chat' or a == "chat":
+            u.send_transaction(Transaction(type=tt.CHAT_REQUEST, cliID=int(b)))
+        elif a == "History" or a == "history":
+            u.send_transaction(Transaction(type=tt.HISTORY_REQ, cliID=int(b)))
+        else:
+            print ("Please enter a valid command or type help")
+    except:
+        try:
+            if userInput == 'help' or userInput == 'Help':
+                print ("Available commands are:\nChat/chat [userID#]\nHistory/history [userID#]\n")
+            else:
+                print ("Please enter a valid command or type help")
+        except:
+            print ("Please enter a valid command or type help")
 
 def chatting(userInput):
     global u
-    msg = bytes(userInput, "utf8")
+    msg = bytes((f"User {u.cliID} says: {userInput}"), "utf8")
 
-    if msg == bytes("End Chat","utf8"):
+    if userInput == ("End Chat"):
         u.send_transaction(Transaction(type=tt.END_REQUEST, sessID=clientSessionID))
     else:
         u.send_transaction(Transaction(type=tt.CHAT, message=msg, sessID=clientSessionID))
@@ -168,19 +183,19 @@ def handle_tcp(transaction):
     global chatID
     
     if transaction.type == tt.UNREACHABLE:
-        print('User Unavailable')
+        print('\nUser Unavailable')
     elif transaction.type == tt.CHAT_STARTED:
-        print(f'Chat Started!\nSession ID: {transaction.sessID}')
+        print(f'\nChat Started!\nSession ID: {transaction.sessID}')
         u.state = UserState.CHATTING
         global clientSessionID
         clientSessionID = transaction.sessID
     elif transaction.type == tt.END_NOTIF:
-        print('Chat Ended')
+        print('\nChat Ended')
         u.state = UserState.CONNECTED
     elif transaction.type == tt.CHAT:
-        print(f'Other user says: {transaction.message.decode("utf8")}')
+        print (f'\n{transaction.message.decode("utf8")}')
     elif transaction.type == tt.HISTORY_RESP:
-        print('{transaction.message.decode("utf8")}')
+        print (f'\n{transaction.message.decode("utf8")}')
 
     pass
 
