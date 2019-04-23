@@ -8,8 +8,6 @@ from transaction import Transaction, TransactionType as tt
 from consts import * # contains server_ip, server_port
 from socket import *
 
-
-
 class TcpServerHandler(threading.Thread):
     def __init__(self, user):
         threading.Thread.__init__(self, daemon=True)
@@ -66,6 +64,7 @@ class TcpServerHandler(threading.Thread):
 
 users = {123: User(123, b'test'), 1234: User(1234, b'password')}
 chatID = 0
+chatHistory = {}
 
 def main():
     """ Entrypoint for server """
@@ -161,12 +160,10 @@ def handle_transaction(user, trans):
         if trans.cliID not in users:
             log.warning(f'User {trans.cliID} does not exist')
             user.send_transaction(Transaction(type=tt.UNREACHABLE, cliID=trans.cliID))
-        elif (users[trans.cliID].state != UserState.CONNECTED:
+        elif users[trans.cliID].state != UserState.CONNECTED:
             user.send_transaction(Transaction(type=tt.UNREACHABLE, cliID=trans.cliID))
         else:
-            #TODO create class of chat session, with array of messages+sessID+corresponding client as member using client_id_a, client_id_b as an identifier 
-            #if it doesnt exist
-            global chatLog
+            global chatHistory
             global chatID
             chatID += 1
             users[trans.cliID].sessID = chatID
@@ -177,6 +174,8 @@ def handle_transaction(user, trans):
                 sessID=chatID, cliID=trans.cliID))
             users[trans.cliID].send_transaction(Transaction(type=tt.CHAT_STARTED, 
                 sessID=chatID, cliID=trans.cliID))
+            if (f"{user.cliID}|{trans.cliID}") or (f"{trans.cliID}|{user.cliID}") not in chatHistory:
+                chatHistory[(f"{user.cliID}|{trans.cliID}")] = []
     elif trans.type == tt.END_REQUEST:
         for x in users:
             if users[x].sessID == trans.sessID:
@@ -185,19 +184,24 @@ def handle_transaction(user, trans):
                 users[x].send_transaction(Transaction(type=tt.END_NOTIF, 
                     sessID=trans.sessID))
     elif trans.type == tt.CHAT:
-        # TODO store message inside array for chat log
         for x in users:
             if (users[x].sessID == trans.sessID) and (users[x] != user):
                 users[x].send_transaction(Transaction(type=tt.CHAT, sessID=trans.sessID, message=trans.message))
+                tempMessage = f"<{trans.sessID}> <from:{user.cliID}> <{trans.message.decode('utf8')}>"
+                try:
+                    chatHistory[(f"{user.cliID}|{users[x].cliID}")].append(tempMessage)
+                except:
+                    chatHistory[(f"{users[x].cliID}|{user.cliID}")].append(tempMessage)
     elif trans.type == tt.HISTORY_REQ:
-        #used to test client
-        user.send_transaction(Transaction(type=tt.CHAT, sessID=5, message=bytes('hello',"utf8")))
-        # TODO for x in chat log array
-            #if x.identifier = f('chats between {client_id_a} and {client_id_b} identifier)
-                #for y in x.messages:
-                    #user.send_transaction(Transaction(type=tt.HISTORY_RESP, cliID=user.cliID, message=x.messages[y]))
+        for x in chatHistory:
+            if x == (f"{user.cliID}|{trans.cliID}") or x == (f"{trans.cliID}|{user.cliID}"):
+                for y in chatHistory[x]:
+                    user.send_transaction(Transaction(type=tt.HISTORY_RESP, cliID=user.cliID, message=bytes((f'{y}'),('utf8'))))
+            else:
+                user.send_transaction(Transaction(type=tt.HISTORY_RESP, cliID=user.cliID, message=bytes(("No history found with this user"),"utf8")))
     pass
 
 if __name__ == '__main__':
     main()
+
 
