@@ -226,12 +226,12 @@ def handle_transaction(user, trans):
             fetch_chat_history(user, users[trans.cliID])
     elif trans.type == tt.END_REQUEST:
         if user.sessID != trans.sessID:
-            log.warning('CHAT: (User {trans.cliID}): Malformed session ID')
+            log.warning(f'CHAT: (User {trans.cliID}): Malformed session ID')
             return
         end_chat(user)
     elif trans.type == tt.CHAT:
         if user.sessID != trans.sessID:
-            log.warning('CHAT: (User {trans.cliID}): Malformed session ID')
+            log.warning(f'CHAT: (User {trans.cliID}): Malformed session ID')
             return
         other = find_other(user)
         if other:

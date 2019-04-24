@@ -135,6 +135,9 @@ def chatting(userInput):
 
     if userInput == "End Chat":
         u.send_transaction(Transaction(type=tt.END_REQUEST, sessID=clientSessionID))
+        print('Chat Ended')
+        u.state = UserState.CONNECTED
+        menu_prompt()
     else:
         trans = Transaction(type=tt.CHAT, message=msg, cliID=u.cliID, 
                 sessID=clientSessionID)
