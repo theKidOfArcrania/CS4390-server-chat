@@ -1,4 +1,4 @@
-from consts import * # server_ip, server_port
+from consts import * 
 from socket import *
 from transaction import *
 import struct, traceback, logging as log, enum, sys, threading
@@ -15,9 +15,12 @@ class Pinger(object):
         self.__timer = None
 
     def __do_ping(self):
-        self.__timer = None
-        self.start()
-        self.__user.send_transaction(Transaction(type=tt.PING, message=b'1234567890'))
+        try:
+            self.__timer = None
+            self.__user.send_transaction(Transaction(type=tt.PING, message=b'1234567890'))
+            self.start()
+        except:
+            pass
 
     def start(self):
         if self.__timer:
@@ -40,6 +43,8 @@ def u32(data):
 def main():
     global sock
     global u
+
+    parse_args()
 
     sock = socket(AF_INET, SOCK_DGRAM)
     sock.settimeout(conn_timeout)
@@ -214,7 +219,7 @@ def print_chat(trans):
     print(f'{trans.cliID}: {trans.message.decode("utf8")}')
 
 def send_udp(trans):
-    sock.sendto(trans.to_bytes(), (server_ip, server_port))
+    sock.sendto(trans.to_bytes(), (server.ip, server.port))
 
 def handle_tcp(transaction):
     global u, chatID, clientSessionID

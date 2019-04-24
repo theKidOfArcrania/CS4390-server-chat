@@ -2,10 +2,10 @@ from user import User, UserState, InvalidUser
 from os import urandom
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
-import traceback, enum, threading, struct
+import traceback, enum, threading, struct, sys
 
 from transaction import Transaction, TransactionType as tt
-from consts import * # contains server_ip, server_port
+from consts import *
 from socket import *
 
 class TcpServerHandler(threading.Thread):
@@ -66,7 +66,7 @@ class TcpServerHandler(threading.Thread):
                 u.send_transaction(Transaction(type=tt.PONG, message=t.message))
                 continue
 
-users = {} 
+users = {1234: User(1234, b'password')} 
 chatHistory = {}
 
 for i in range(10):
@@ -77,10 +77,13 @@ def main():
     """ Entrypoint for server """
     global sock
 
+    server.ip = '0.0.0.0'
+    parse_args()
+
     # TODO: load users/ chat history from file.
 
     sock = socket(AF_INET, SOCK_DGRAM, 0)
-    sock.bind((server_ip, server_port))
+    sock.bind((server.ip, server.port))
 
     while True:
         data, addr = sock.recvfrom(1024)

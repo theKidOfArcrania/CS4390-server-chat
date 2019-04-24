@@ -104,7 +104,7 @@ class User(object):
             
             data = unpad(cipher.decrypt(recv.message), AES.block_size)
             cookie, port = fmt.unpack(data)
-            conn.connect((server_ip, port))
+            conn.connect((server.ip, port))
             conn.settimeout(client_activity_timeout)
 
             ret = None
@@ -120,7 +120,7 @@ class User(object):
         else:
             # Server-end
             cookie = urandom(8)
-            conn.bind((server_ip, 0))
+            conn.bind((server.ip, 0))
             conn.listen(5)
             data = fmt.pack(cookie, conn.getsockname()[1])
             edata = cipher.encrypt(pad(data, AES.block_size))
