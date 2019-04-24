@@ -1,4 +1,4 @@
-from consts import * # server_ip, server_port
+from consts import * 
 from socket import *
 from transaction import *
 import struct, traceback, logging as log, enum, sys, threading
@@ -6,6 +6,7 @@ import user
 from user import UserState
 import threading
 import time
+import sys
 
 tt = TransactionType
 
@@ -15,9 +16,12 @@ class Pinger(object):
         self.__timer = None
 
     def __do_ping(self):
-        self.__timer = None
-        self.start()
-        self.__user.send_transaction(Transaction(type=tt.PING, message=b'1234567890'))
+        try:
+            self.__timer = None
+            self.__user.send_transaction(Transaction(type=tt.PING, message=b'1234567890'))
+            self.start()
+        except:
+            pass
 
     def start(self):
         if self.__timer:
@@ -40,6 +44,8 @@ def u32(data):
 def main():
     global sock
     global u
+
+    parse_args()
 
     sock = socket(AF_INET, SOCK_DGRAM)
     sock.settimeout(conn_timeout)
@@ -69,11 +75,12 @@ def main():
 
 
     # Initialize pinger
+    global p, exitClient
+    exitClient = 0
     p = Pinger(u)
-    p.start()
 
     # Now receive transactions from TCP connection
-    print('Connected to server!\nType "help/Help" to see available commands.')
+    print('Connected to server!\n\nType "help/Help" to see available commands.')
     
     t1 = threading.Thread(target=listen, daemon=True)
     t1.start()
@@ -86,8 +93,12 @@ def main():
             chat_prompt()
         else:
             menu_prompt()
-
+        
         inp = input()
+
+        if exitClient == 1:
+            print('Client will close now')
+            exit()
 
         if u.state == UserState.CHATTING:
             clear_upline()
@@ -98,7 +109,6 @@ def main():
             time.sleep(.05)
             sys.stdout.write('> ')
             sys.stdout.flush()
-        #p.stop()
 
 def menu(userInput):
     global u
@@ -125,11 +135,15 @@ def menu(userInput):
             print ("Please enter a valid command or type help")
 
 def chatting(userInput):
-    global u
+    global u, p
     msg = bytes(userInput, 'utf8')
 
     if userInput == "End Chat":
         u.send_transaction(Transaction(type=tt.END_REQUEST, sessID=clientSessionID))
+        print('Chat Ended')
+        p.stop()
+        u.state = UserState.CONNECTED
+        menu_prompt()
     else:
         trans = Transaction(type=tt.CHAT, message=msg, cliID=u.cliID, 
                 sessID=clientSessionID)
@@ -214,20 +228,22 @@ def print_chat(trans):
     print(f'{trans.cliID}: {trans.message.decode("utf8")}')
 
 def send_udp(trans):
-    sock.sendto(trans.to_bytes(), (server_ip, server_port))
+    sock.sendto(trans.to_bytes(), (server.ip, server.port))
 
 def handle_tcp(transaction):
-    global u, chatID, clientSessionID
+    global u, chatID, clientSessionID, p
     
     if transaction.type == tt.UNREACHABLE:
         print('User Unavailable')
     elif transaction.type == tt.CHAT_STARTED:
+        p.start()
         clear_line()
         print(f'Chat Started!\nSession ID: {transaction.sessID}')
         chat_prompt()
         u.state = UserState.CHATTING
         clientSessionID = transaction.sessID
     elif transaction.type == tt.END_NOTIF:
+        p.stop()
         clear_line()
         print('Chat Ended')
         u.state = UserState.CONNECTED
@@ -266,15 +282,18 @@ def handle_udp(data):
     return 0
 
 def listen():
-    global u
+    global u, exitClient
 
     while True:
         try:
             trans = u.recv_transaction()
             #print(f'Received {trans.type.name} transaction: {trans.message}')
             handle_tcp(trans)
-        except timeout:
-            print('Received timeout on server!\n')
+        except:
+            clear_line()
+            print('Received server timeout. Press enter to exit.')
+            exitClient = 1
+            break
 
 if __name__ == '__main__':
     main()

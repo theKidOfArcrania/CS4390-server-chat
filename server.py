@@ -2,10 +2,10 @@ from user import User, UserState, InvalidUser
 from os import urandom
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
-import traceback, enum, threading, struct
+import traceback, enum, threading, struct, sys
 
 from transaction import Transaction, TransactionType as tt
-from consts import * # contains server_ip, server_port
+from consts import *
 from socket import *
 
 class TcpServerHandler(threading.Thread):
@@ -77,10 +77,13 @@ def main():
     """ Entrypoint for server """
     global sock
 
+    server.ip = '0.0.0.0'
+    parse_args()
+
     # TODO: load users/ chat history from file.
 
     sock = socket(AF_INET, SOCK_DGRAM, 0)
-    sock.bind((server_ip, server_port))
+    sock.bind((server.ip, server.port))
 
     while True:
         data, addr = sock.recvfrom(1024)
@@ -223,12 +226,12 @@ def handle_transaction(user, trans):
             fetch_chat_history(user, users[trans.cliID])
     elif trans.type == tt.END_REQUEST:
         if user.sessID != trans.sessID:
-            log.warning('CHAT: (User {trans.cliID}): Malformed session ID')
+            log.warning(f'CHAT: (User {trans.cliID}): Malformed session ID')
             return
         end_chat(user)
     elif trans.type == tt.CHAT:
         if user.sessID != trans.sessID:
-            log.warning('CHAT: (User {trans.cliID}): Malformed session ID')
+            log.warning(f'CHAT: (User {trans.cliID}): Malformed session ID')
             return
         other = find_other(user)
         if other:
