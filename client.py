@@ -78,7 +78,7 @@ def main():
     p.start()
 
     # Now receive transactions from TCP connection
-    print('Connected to server!\nType "help/Help" to see available commands.')
+    print('Connected to server!\n\nType "help/Help" to see available commands.')
     
     t1 = threading.Thread(target=listen, daemon=True)
     t1.start()

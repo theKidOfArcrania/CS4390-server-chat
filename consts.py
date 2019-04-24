@@ -1,12 +1,22 @@
-
-
-import coloredlogs, logging
+import logging
 
 # Install colored logs on our logger.
 log = logging.getLogger('server-chat')
-coloredlogs.install(level='DEBUG', logger=log)
 
-#server_ip = '104.131.79.111'
+def install_handler(logger):
+    import coloredlogs
+
+    coloredlogs.install(level='DEBUG', logger=logger)
+
+    fh = logging.FileHandler('access.log')
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(logging.Formatter(coloredlogs.DEFAULT_LOG_FORMAT))
+    logger.addHandler(fh)
+
+
+install_handler(log)
+
+
 class ServerConsts(object):
     def __init__(self):
         self.ip = '127.0.0.1'
@@ -20,7 +30,6 @@ class ServerConsts(object):
             print(f'Usage: python3 {sys.argv[0]} [IP PORT]')
             exit(1)
         else:
-            print('hi')
             self.ip = sys.argv[1]
             self.port = int(sys.argv[2])
 
