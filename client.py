@@ -79,15 +79,25 @@ def main():
     t1.start()
     clientSessionID = 0
 
+    sys.stdout.write('> ')
+    sys.stdout.flush()
     while True:
-        userInput = input("\nSay:")
-        if u.state != UserState.CHATTING:
-            menu(userInput)
+        if u.state == UserState.CHATTING:
+            chat_prompt()
+        else:
+            menu_prompt()
+
+        inp = input()
+
+        if u.state == UserState.CHATTING:
+            clear_upline()
+            chatting(inp)
             time.sleep(.05)
-            continue
-        chatting(userInput)
-        time.sleep(.05)
-        continue
+        else:
+            menu(inp)
+            time.sleep(.05)
+            sys.stdout.write('> ')
+            sys.stdout.flush()
         #p.stop()
 
 def menu(userInput):
@@ -95,8 +105,11 @@ def menu(userInput):
     
     try:        
         a,b = userInput.split()
-
+        b = int(b)
         if a == 'Chat' or a == "chat":
+            if b == u.cliID:
+                print('Cannot chat with self!')
+                return
             u.send_transaction(Transaction(type=tt.CHAT_REQUEST, cliID=int(b)))
         elif a == "History" or a == "history":
             u.send_transaction(Transaction(type=tt.HISTORY_REQ, cliID=int(b)))
@@ -113,12 +126,15 @@ def menu(userInput):
 
 def chatting(userInput):
     global u
-    msg = bytes((f"User {u.cliID} says: {userInput}"), "utf8")
+    msg = bytes(userInput, 'utf8')
 
-    if userInput == ("End Chat"):
+    if userInput == "End Chat":
         u.send_transaction(Transaction(type=tt.END_REQUEST, sessID=clientSessionID))
     else:
-        u.send_transaction(Transaction(type=tt.CHAT, message=msg, sessID=clientSessionID))
+        trans = Transaction(type=tt.CHAT, message=msg, cliID=u.cliID, 
+                sessID=clientSessionID)
+        u.send_transaction(trans)
+        print_chat(trans)
 
 def getpass(prompt='Password: '):
     import termios
@@ -174,28 +190,53 @@ def prompt_creds():
     pwd = getpass()
     return userID, pwd
     
+def clear_upline():
+    sys.stdout.write('\x1B[1A')
+    clear_line()
+
+def clear_line():
+    sys.stdout.write('\r\x1b[2K')
+    sys.stdout.flush()
+
+def menu_prompt():
+    clear_line()
+    sys.stdout.write('> ')
+    sys.stdout.flush()
+
+def chat_prompt():
+    clear_line()
+    sys.stdout.write('chat> ')
+    sys.stdout.flush()
+
+def print_chat(trans):
+    assert trans.type == tt.CHAT
+    clear_line()
+    print(f'{trans.cliID}: {trans.message.decode("utf8")}')
 
 def send_udp(trans):
     sock.sendto(trans.to_bytes(), (server_ip, server_port))
 
 def handle_tcp(transaction):
-    global u
-    global chatID
+    global u, chatID, clientSessionID
     
     if transaction.type == tt.UNREACHABLE:
-        print('\nUser Unavailable')
+        print('User Unavailable')
     elif transaction.type == tt.CHAT_STARTED:
-        print(f'\nChat Started!\nSession ID: {transaction.sessID}')
+        clear_line()
+        print(f'Chat Started!\nSession ID: {transaction.sessID}')
+        chat_prompt()
         u.state = UserState.CHATTING
-        global clientSessionID
         clientSessionID = transaction.sessID
     elif transaction.type == tt.END_NOTIF:
-        print('\nChat Ended')
+        clear_line()
+        print('Chat Ended')
         u.state = UserState.CONNECTED
+        menu_prompt()
     elif transaction.type == tt.CHAT:
-        print (f'\n{transaction.message.decode("utf8")}')
+        print_chat(transaction)
+        chat_prompt()
     elif transaction.type == tt.HISTORY_RESP:
-        print (f'\n{transaction.message.decode("utf8")}')
+        print(transaction.message.decode("utf8"))
 
     pass
 

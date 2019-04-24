@@ -17,6 +17,8 @@ class TcpServerHandler(threading.Thread):
     def run(self):
         try:
             self._run_noexc()
+        except ConnectionResetError:
+            log.info(f'User {self.__user.cliID} has exited by connection reset.')
         except EOFError: 
             log.info(f'User {self.__user.cliID} has exited by client quit.')
         except timeout:
@@ -24,6 +26,8 @@ class TcpServerHandler(threading.Thread):
         except:
             log.error(traceback.format_exc())
         finally:
+            if self.__user.state == UserState.CHATTING:
+                end_chat(self.__user)
             self.__user.disconnect()
 
     def _run_noexc(self):
@@ -62,9 +66,12 @@ class TcpServerHandler(threading.Thread):
                 u.send_transaction(Transaction(type=tt.PONG, message=t.message))
                 continue
 
-users = {123: User(123, b'test'), 1234: User(1234, b'password')}
-chatID = 0
+users = {} 
 chatHistory = {}
+
+for i in range(10):
+    uid = i + 1001
+    users[uid] = User(uid, bytes(f'user{uid}', 'utf8'))
 
 def main():
     """ Entrypoint for server """
@@ -152,7 +159,47 @@ def handle_udp(data, addr):
     else:
         log.error(f'UDP: Invalid message type: "{t.type.name}"')
 
+def fetch_chat_history(userA, userB):
+    global chatHistory
     
+    userA = userA.cliID
+    userB = userB.cliID
+
+    if userA not in chatHistory:
+        chatHistory[userA] = {}
+    if userB not in chatHistory:
+        chatHistory[userB] = {}
+
+    if userB not in chatHistory[userA]:
+        # Use aliasing to refer to either one
+        hist = []
+        chatHistory[userA][userB] = hist
+        chatHistory[userB][userA] = hist
+    else:
+        hist = chatHistory[userA][userB]
+
+    return hist
+
+def find_other(user):
+    for uid, u in users.items():
+        if u.sessID == user.sessID and u != user:
+            return u
+    else:
+        log.error(f'CHAT: (User {user.cliID}, Sess {user.sessID}): ' + \
+                'Could not find other user')
+
+def end_chat(user):
+    other = find_other(user)
+
+    user.state = UserState.CONNECTED
+    user.sessID = 0
+
+    if other:
+        other.state = UserState.CONNECTED
+        other.sessID = 0
+        other.send_transaction(Transaction(type=tt.END_NOTIF,
+            sessID=user.sessID))
+
 
 def handle_transaction(user, trans):
     """ Handles a TCP transaction object on the server end. """
@@ -163,43 +210,42 @@ def handle_transaction(user, trans):
         elif users[trans.cliID].state != UserState.CONNECTED:
             user.send_transaction(Transaction(type=tt.UNREACHABLE, cliID=trans.cliID))
         else:
-            global chatHistory
-            global chatID
-            chatID += 1
-            users[trans.cliID].sessID = chatID
-            user.sessID = chatID
+            user.init_sess()
+            sessID = user.sessID
+            users[trans.cliID].sessID = sessID
+            user.sessID = sessID
             users[trans.cliID].state = UserState.CHATTING
             user.state = UserState.CHATTING
             user.send_transaction(Transaction(type=tt.CHAT_STARTED, 
-                sessID=chatID, cliID=trans.cliID))
+                sessID=sessID, cliID=trans.cliID))
             users[trans.cliID].send_transaction(Transaction(type=tt.CHAT_STARTED, 
-                sessID=chatID, cliID=trans.cliID))
-            if (f"{user.cliID}|{trans.cliID}") or (f"{trans.cliID}|{user.cliID}") not in chatHistory:
-                chatHistory[(f"{user.cliID}|{trans.cliID}")] = []
+                sessID=sessID, cliID=trans.cliID))
+            fetch_chat_history(user, users[trans.cliID])
     elif trans.type == tt.END_REQUEST:
-        for x in users:
-            if users[x].sessID == trans.sessID:
-                users[x].state = UserState.CONNECTED
-                users[x].sessID = 0
-                users[x].send_transaction(Transaction(type=tt.END_NOTIF, 
-                    sessID=trans.sessID))
+        if user.sessID != trans.sessID:
+            log.warning('CHAT: (User {trans.cliID}): Malformed session ID')
+            return
+        end_chat(user)
     elif trans.type == tt.CHAT:
-        for x in users:
-            if (users[x].sessID == trans.sessID) and (users[x] != user):
-                users[x].send_transaction(Transaction(type=tt.CHAT, sessID=trans.sessID, message=trans.message))
-                tempMessage = f"<{trans.sessID}> <from:{user.cliID}> <{trans.message.decode('utf8')}>"
-                try:
-                    chatHistory[(f"{user.cliID}|{users[x].cliID}")].append(tempMessage)
-                except:
-                    chatHistory[(f"{users[x].cliID}|{user.cliID}")].append(tempMessage)
+        if user.sessID != trans.sessID:
+            log.warning('CHAT: (User {trans.cliID}): Malformed session ID')
+            return
+        other = find_other(user)
+        if other:
+            other.send_transaction(Transaction(type=tt.CHAT, sessID=trans.sessID,
+                message=trans.message, cliID=user.cliID))
+            tempMessage = f"<{trans.sessID}>: {user.cliID}: {trans.message.decode('utf8')}"
+            tempMessage = bytes(tempMessage, 'utf8')
+            fetch_chat_history(user, other).append(tempMessage)
     elif trans.type == tt.HISTORY_REQ:
-        for x in chatHistory:
-            if x == (f"{user.cliID}|{trans.cliID}") or x == (f"{trans.cliID}|{user.cliID}"):
-                for y in chatHistory[x]:
-                    user.send_transaction(Transaction(type=tt.HISTORY_RESP, cliID=user.cliID, message=bytes((f'{y}'),('utf8'))))
-            else:
-                user.send_transaction(Transaction(type=tt.HISTORY_RESP, cliID=user.cliID, message=bytes(("No history found with this user"),"utf8")))
-    pass
+        hist = fetch_chat_history(user, users[trans.cliID])
+        if hist:
+            for y in hist:
+                user.send_transaction(Transaction(type=tt.HISTORY_RESP,
+                    cliID=user.cliID, message=y))
+        else:
+            user.send_transaction(Transaction(type=tt.HISTORY_RESP,
+                cliID=user.cliID, message=b"No history found with this user"))
 
 if __name__ == '__main__':
     main()

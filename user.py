@@ -12,6 +12,11 @@ class UserState(enum.IntEnum):
     OFFLINE, AUTH, CONNECTING, CONNECTED, CHATTING = range(5)
 
 class User(object):
+    @staticmethod
+    def new_sess_id():
+        """ Obtains a new session ID """
+        return u32(urandom(4))
+
     def __init__(self, cliID, secretKey):
         """ Initializes user """
         self.cliID = cliID
@@ -49,6 +54,7 @@ class User(object):
 
         self.__sbind.close()
         self.__sbind = None
+        self.sessID = 0
         self.state = UserState.CONNECTED
         self.send_transaction(Transaction(type=tt.CONNECTED))
 
@@ -158,10 +164,6 @@ class User(object):
         """ 
         Initializes a new session ID. It also silently discards previous session
         information.
-
-        This session ID is different from the session ID used to identify a
-        particular chat session. (That is computed from the hash of both
-        client's session IDs).
         """
 
         self.sessID = u32(urandom(4))
