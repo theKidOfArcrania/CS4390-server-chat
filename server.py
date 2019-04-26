@@ -237,18 +237,19 @@ def handle_transaction(user, trans):
         if other:
             other.send_transaction(Transaction(type=tt.CHAT, sessID=trans.sessID,
                 message=trans.message, cliID=user.cliID))
-            tempMessage = f"<{trans.sessID}>: {user.cliID}: {trans.message.decode('utf8')}"
-            tempMessage = bytes(tempMessage, 'utf8')
-            fetch_chat_history(user, other).append(tempMessage)
+            msg = (trans.sessID, user.cliID, trans.message)
+            fetch_chat_history(user, other).append(msg)
     elif trans.type == tt.HISTORY_REQ:
-        hist = fetch_chat_history(user, users[trans.cliID])
-        if hist:
-            for y in hist:
-                user.send_transaction(Transaction(type=tt.HISTORY_RESP,
-                    cliID=user.cliID, message=y))
+        if trans.cliID not in users:
+            log.warning(f'RESPONSE: User id {trans.cliID} does not exist')
         else:
-            user.send_transaction(Transaction(type=tt.HISTORY_RESP,
-                cliID=user.cliID, message=b"No history found with this user"))
+            hist = fetch_chat_history(user, users[trans.cliID])
+            for sessID, client, msg in hist:
+                user.send_transaction(Transaction(type=tt.HISTORY_RESP,
+                    cliID=client, sessID=sessID, message=msg))
+
+        user.send_transaction(Transaction(type=tt.HISTORY_RESP,
+            cliID=0, message=b''))
 
 if __name__ == '__main__':
     main()

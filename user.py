@@ -138,6 +138,7 @@ class User(object):
         """ Disconnects the client from current chat (if still connected) and
         sets user to OFFLINE, cleaning up any resources used."""
         self.__cookie = None
+        self.sessID = 0
 
         if self.__sbind:
             self.__sbind.close()

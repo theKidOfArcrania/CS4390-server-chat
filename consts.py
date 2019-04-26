@@ -37,7 +37,7 @@ server = ServerConsts()
 parse_args = server.parse_args
 conn_timeout = 5
 
-ping_timeout = 5
+ping_timeout = 55
 server_activity_timeout = ping_timeout + 5
 client_activity_timeout = server_activity_timeout + 5
 
