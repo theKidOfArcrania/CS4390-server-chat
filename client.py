@@ -148,7 +148,7 @@ def menu(u, userInput):
     global hist_cnt
 
     userInput = userInput.lower()
-    if userInput == 'log out' or userInput == 'logout':
+    if userInput == 'log off' or userInput == 'logoff':
         u.disconnect()
         print('Bye...')
         return
@@ -162,7 +162,7 @@ def menu(u, userInput):
             print('''Available commands are:
 chat [userID#]
 history [userID#]
-logout''')
+logoff''')
         else:
             print ("Please enter a valid command or type help")
         return

@@ -1,4 +1,4 @@
-import socket_ext, struct
+import socket_ext, socket, struct
 
 from binascii import hexlify
 from Crypto.Cipher import AES
@@ -20,10 +20,14 @@ class EncSocket(object):
         self._sock.bind(addr)
 
     def connect(self, addr):
-        self.connect(addr)
+        self._sock.connect(addr)
 
     def close(self):
-        self._sock.close()
+        try:
+            self._sock.shutdown(socket.SHUT_RDWR)
+            self._sock.close()
+        except:
+            pass
 
     def listen(self, backlog):
         self._sock.listen(backlog)
